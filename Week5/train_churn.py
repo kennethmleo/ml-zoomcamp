@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[16]:
-
+import pickle
 
 import pandas as pd
 import numpy as np
@@ -14,9 +13,13 @@ from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
 from sklearn.metrics import roc_auc_score
 
+#Parameters
 
-# In[17]:
+C = 1.0
+n_splits = 5
+output_file = f'model_C={C}.bin'
 
+#data preparation
 
 df = pd.read_csv('WA_Fn-UseC_-Telco-Customer-Churn.csv')
 
@@ -32,15 +35,7 @@ for col in string_columns:
 
 df.churn = (df.churn == 'yes').astype(int)
 
-
-# In[23]:
-
-
 df_full_train, df_test = train_test_split(df, test_size=0.2, random_state=1)
-
-
-# In[24]:
-
 
 categorical = ['gender', 'seniorcitizen', 'partner', 'dependents', 'phoneservice', 'multiplelines', 'internetservice',
                'onlinesecurity', 'onlinebackup', 'deviceprotection', 'techsupport', 'streamingtv', 'streamingmovies',
@@ -48,9 +43,7 @@ categorical = ['gender', 'seniorcitizen', 'partner', 'dependents', 'phoneservice
 numerical = ['tenure', 'monthlycharges', 'totalcharges']
 
 
-# In[25]:
-
-
+#training
 def train(df, y, C=1.0):
     cat = df[categorical + numerical].to_dict(orient='rows')
     
@@ -75,19 +68,13 @@ def predict(df, dv, model):
     return y_pred
 
 
-# In[26]:
+# validation
 
-
-C = 1.0
-n_splits = 5
-
-
-# In[27]:
-
-
+print(f'doing validation with C={C}')
 kfold = KFold(n_splits = n_splits, shuffle = True, random_state = 1)
 
 scores = []
+fold = 0
 for train_idx, val_idx in kfold.split(df_full_train):
     df_train = df_full_train.iloc[train_idx]
     df_val = df_full_train.iloc[val_idx]
@@ -100,126 +87,28 @@ for train_idx, val_idx in kfold.split(df_full_train):
     
     auc = roc_auc_score(y_val, y_pred)
     scores.append(auc)
-    
+
+    print(f'auc on fold {fold} is {auc}')
+    fold += 1
+print('validation result')    
 print('C = %s %.3f +- %.3f' %(C, np.mean(scores), np.std(scores)))
 
 
-# In[28]:
+# training the final model
 
-
-scores
-
-
-# In[31]:
-
+print('taining the final model')
 
 dv, model = train(df_full_train, df_full_train.churn.values, C = 1.0)
 y_pred = predict(df_test, dv, model)
 
 y_test = df_test.churn.values
 auc = roc_auc_score(y_test, y_pred)
-auc
 
+print(f'auc = {auc}')
 
 # Save the model
 
-# In[33]:
-
-
-import pickle
-
-
-# In[36]:
-
-
-output_file = f'model_C={C}.bin'
-output_file
-
-
-# In[37]:
-
-
-f_out = open(output_file, 'wb') #wb = write binary
-pickle.dump((dv, model), f_out)
-f_out.close() #dont forget to close the file
-
-
-# In[38]:
-
-
 with open(output_file, 'wb') as f_out:
     pickle.dump((dv,model), f_out)
-    #do something
-#do others
 
-
-# Load the model
-
-# In[1]:
-
-
-import pickle
-
-
-# In[4]:
-
-
-model_file = f'model_C=1.0.bin'
-
-
-# In[5]:
-
-
-with open(model_file, 'rb') as f_in: #to open a pickle file #rb = read bin
-    dv, model = pickle.load(f_in)
-
-
-# In[6]:
-
-
-dv, model
-
-
-# In[7]:
-
-
-customer = {
-    'gender': 'female',
-    'seniorcitizen': 0,
-    'partner': 'yes',
-    'dependents': 'no',
-    'phoneservice': 'no',
-    'multiplelines': 'no_phone_service',
-    'internetservice': 'dsl',
-    'onlinesecurity': 'no',
-    'onlinebackup': 'yes',
-    'deviceprotection': 'no',
-    'techsupport': 'no',
-    'streamingtv': 'no',
-    'streamingmovies': 'no',
-    'contract': 'month-to-month',
-    'paperlessbilling': 'yes',
-    'paymentmethod': 'electronic_check',
-    'tenure': 1,
-    'monthlycharges': 29.85,
-    'totalcharges': 29.85
-}
-
-
-# In[9]:
-
-
-X = dv.transform([customer])
-
-
-# In[13]:
-
-
-model.predict_proba(X)[0,1] #probability of the customer is going to churn
-
-
-# In[ ]:
-
-
-
-
+print(f'the model is saved to {output_file}')
